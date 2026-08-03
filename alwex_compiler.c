@@ -23,10 +23,6 @@ static int if_base_current_indent[MAX_IF_DEPTH] = {0};
 
 static int current_indent = 0;   // глобальный текущий отступ
 
-#define MAX_FUNCTIONS_CODE 65536
-static char functions_buffer[MAX_FUNCTIONS_CODE];
-static size_t func_buf_len = 0;
-
 // ---------- служебные функции (нужны компилятору) ----------
 static int my_isspace(int c) {
     return (c == ' ' || c == '\t' || c == '\n' || c == '\r');
@@ -496,58 +492,6 @@ void compile_line(const char* token, FILE* out, const char** pp) {
 
     // --- endloop (ничего не делаем, выход произошёл в compile_block) ---
     if (strncmp(token, "endloop", 7) == 0) return;
-
-    // --- func ---
-    if (strncmp(token, "func ", 5) == 0) {
-        char name[50];
-        strcpy(name, token+5);
-        char* p = name;
-        while (*p && *p != ' ') p++;
-        *p = '\0';
-
-        const char* start = *pp;
-        const char* end_ptr = strstr(start, "\nend\n");
-        if (!end_ptr) end_ptr = strstr(start, "end");
-        if (!end_ptr) {
-            printf("Error: no end for function %s\n", name);
-            return;
-        }
-
-        // Добавляем сигнатуру функции в буфер
-        char header[128];
-        int header_len = snprintf(header, sizeof(header), "void func_%s() {\n", name);
-        if (func_buf_len + header_len < MAX_FUNCTIONS_CODE) {
-            strcpy(functions_buffer + func_buf_len, header);
-            func_buf_len += header_len;
-        }
-
-        // Компилируем тело функции во временный буфер
-        char body_buffer[16384] = {0};
-        FILE* body_file = fmemopen(body_buffer, sizeof(body_buffer), "w");
-        if (!body_file) {
-            printf("Error: cannot create memory stream for function body\n");
-            return;
-        }
-
-        int saved_indent = current_indent;
-        current_indent = 1;
-        const char* body_ptr = start;
-        compile_block(&body_ptr, body_file, 1);   // пишем в body_file
-        fclose(body_file);
-
-        // Добавляем закрывающую скобку и тело в основной буфер
-        size_t body_len = strlen(body_buffer);
-        if (func_buf_len + body_len + 3 < MAX_FUNCTIONS_CODE) {  // +3 для "}\n\n"
-            strcpy(functions_buffer + func_buf_len, body_buffer);
-            func_buf_len += body_len;
-            strcpy(functions_buffer + func_buf_len, "}\n\n");
-            func_buf_len += 3;
-        }
-
-        current_indent = saved_indent;
-        *pp = end_ptr + 3;
-        return;
-    }
 
     // --- call ---
     if (strncmp(token, "call ", 5) == 0) {
@@ -1072,7 +1016,6 @@ int main(int argc, char* argv[]) {
         free(code);
         return 1;
     }
-    func_buf_len = 0;   // перед вызовом generate_program
     generate_program(code, c_out);
     fclose(c_out);
     free(code);
