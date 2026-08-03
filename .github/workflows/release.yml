@@ -89,8 +89,8 @@ jobs:
       - name: Create archive (PowerShell)
         shell: pwsh
         run: |
-          if (-not (Test-Path "windows_pkg\gcc\bin\gcc.exe")) {
-              Write-Error "gcc.exe not found in package"
+          if (-not (Test-Path "windows_pkg\gcc.exe")) {
+              Write-Error "gcc.exe not found in package root"
               exit 1
           }
           Compress-Archive -Path "windows_pkg\*" -DestinationPath "alwex-compiler-windows.zip" -Force
