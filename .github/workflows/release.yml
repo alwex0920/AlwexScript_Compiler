@@ -59,30 +59,30 @@ jobs:
           gcc -c alwex_runtime.c -o alwex_runtime.o
           gcc alwex_compiler.c -o alwex_compiler.exe -lwininet
 
-          # Создаем структуру пакета
-          mkdir -p windows_pkg/gcc/bin
+          # Создаём пакет (все файлы в корне)
+          mkdir -p windows_pkg
           cp alwex_compiler.exe windows_pkg/
           cp alwex_runtime.o windows_pkg/
 
-          # Находим реальный путь к gcc
+          # Находим папку с GCC
           GCC_BIN=$(dirname $(which gcc))
           echo "GCC bin directory: $GCC_BIN"
 
-          # Копируем сам GCC и минимально необходимые утилиты
+          # Копируем gcc.exe и минимальный набор утилит
           for tool in gcc as ld cc1 collect2; do
             if [ -f "$GCC_BIN/$tool.exe" ]; then
-              cp "$GCC_BIN/$tool.exe" windows_pkg/gcc/bin/
+              cp "$GCC_BIN/$tool.exe" windows_pkg/
             fi
           done
 
-          # Копируем все DLL, чтобы не гадать с зависимостями
-          cp $GCC_BIN/*.dll windows_pkg/gcc/bin/ 2>/dev/null || true
+          # Копируем все DLL, которые могут понадобиться
+          cp $GCC_BIN/*.dll windows_pkg/ 2>/dev/null || true
 
-          # Проверяем результат
-          if [ -f windows_pkg/gcc/bin/gcc.exe ]; then
-            echo "gcc.exe successfully copied"
+          # Проверяем, что gcc.exe на месте
+          if [ -f windows_pkg/gcc.exe ]; then
+            echo "gcc.exe successfully placed in package root"
           else
-            echo "ERROR: gcc.exe not found in package"
+            echo "ERROR: gcc.exe not found"
             exit 1
           fi
 
