@@ -38,49 +38,49 @@ jobs:
         with:
           files: alwex-compiler.deb
 
-    build-windows:
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Setup MSYS2
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: MINGW64
-          update: true
-          install: >-
-            mingw-w64-x86_64-gcc
-            mingw-w64-x86_64-curl
-
-      - name: Build project
-        shell: msys2 {0}
-        run: |
-          gcc -c alwex_runtime.c -o alwex_runtime.o
-          gcc alwex_compiler.c -o alwex_compiler.exe -lwininet
-
-      - name: Prepare Windows package (with portable GCC from MSYS2)
-        shell: pwsh
-        run: |
-          $pkg = "windows_pkg"
-          mkdir $pkg
-          cp alwex_compiler.exe $pkg/
-          cp alwex_runtime.o $pkg/
-
-          # Копируем портативный GCC из установленного MSYS2 MINGW64
-          $mingwRoot = "C:\msys64\mingw64"
-          # Создаём папку gcc внутри пакета
-          mkdir $pkg\gcc
-          # Копируем bin (gcc.exe и нужные dll)
-          Copy-Item -Path "$mingwRoot\bin\*" -Destination "$pkg\gcc\" -Recurse
-          # Копируем lib и include для компиляции программ
-          Copy-Item -Path "$mingwRoot\lib\*" -Destination "$pkg\gcc\" -Recurse
-          Copy-Item -Path "$mingwRoot\include\*" -Destination "$pkg\gcc\" -Recurse
-          # Удаляем огромные ненужные файлы, чтобы уменьшить размер (опционально)
-          Remove-Item "$pkg\gcc\*.a" -Force -ErrorAction SilentlyContinue
-          # Архивируем
-          Compress-Archive -Path $pkg\* -DestinationPath alwex-compiler-windows.zip
-
-      - name: Upload Windows archive to release
-        uses: softprops/action-gh-release@v2
-        with:
-          files: alwex-compiler-windows.zip
+  build-windows:
+      runs-on: windows-latest
+      steps:
+        - uses: actions/checkout@v4
+  
+        - name: Setup MSYS2
+          uses: msys2/setup-msys2@v2
+          with:
+            msystem: MINGW64
+            update: true
+            install: >-
+              mingw-w64-x86_64-gcc
+              mingw-w64-x86_64-curl
+  
+        - name: Build project
+          shell: msys2 {0}
+          run: |
+            gcc -c alwex_runtime.c -o alwex_runtime.o
+            gcc alwex_compiler.c -o alwex_compiler.exe -lwininet
+  
+        - name: Prepare Windows package (with portable GCC from MSYS2)
+          shell: pwsh
+          run: |
+            $pkg = "windows_pkg"
+            mkdir $pkg
+            cp alwex_compiler.exe $pkg/
+            cp alwex_runtime.o $pkg/
+  
+            # Копируем портативный GCC из установленного MSYS2 MINGW64
+            $mingwRoot = "C:\msys64\mingw64"
+            # Создаём папку gcc внутри пакета
+            mkdir $pkg\gcc
+            # Копируем bin (gcc.exe и нужные dll)
+            Copy-Item -Path "$mingwRoot\bin\*" -Destination "$pkg\gcc\" -Recurse
+            # Копируем lib и include для компиляции программ
+            Copy-Item -Path "$mingwRoot\lib\*" -Destination "$pkg\gcc\" -Recurse
+            Copy-Item -Path "$mingwRoot\include\*" -Destination "$pkg\gcc\" -Recurse
+            # Удаляем огромные ненужные файлы, чтобы уменьшить размер (опционально)
+            Remove-Item "$pkg\gcc\*.a" -Force -ErrorAction SilentlyContinue
+            # Архивируем
+            Compress-Archive -Path $pkg\* -DestinationPath alwex-compiler-windows.zip
+  
+        - name: Upload Windows archive to release
+          uses: softprops/action-gh-release@v2
+          with:
+            files: alwex-compiler-windows.zip
