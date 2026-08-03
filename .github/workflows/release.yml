@@ -64,21 +64,48 @@ jobs:
           $pkg = "windows_pkg"
           New-Item -ItemType Directory -Force -Path $pkg
 
+          # Копируем сам компилятор
           Copy-Item -Path "alwex_compiler.exe" -Destination $pkg\
           Copy-Item -Path "alwex_runtime.o" -Destination $pkg\
 
           $mingwRoot = "C:\msys64\mingw64"
-          Write-Host "Copying GCC from $mingwRoot ..."
-          if (-not (Test-Path $mingwRoot)) {
-              Write-Error "MSYS2 mingw64 directory not found!"
+          Write-Host "Listing $mingwRoot\bin (первые 20 файлов):"
+          Get-ChildItem "$mingwRoot\bin" -File | Select-Object -First 20 | ForEach-Object { Write-Host $_.Name }
+
+          # Убедимся, что gcc.exe существует
+          $gccExe = "$mingwRoot\bin\gcc.exe"
+          if (-not (Test-Path $gccExe)) {
+              Write-Error "gcc.exe not found in $mingwRoot\bin"
               exit 1
           }
-          Copy-Item -Path "$mingwRoot\bin" -Destination "$pkg\gcc\" -Recurse -Force
-          Copy-Item -Path "$mingwRoot\lib" -Destination "$pkg\gcc\" -Recurse -Force
-          Copy-Item -Path "$mingwRoot\include" -Destination "$pkg\gcc\" -Recurse -Force
 
+          # Создаём папку gcc/bin внутри пакета
+          New-Item -ItemType Directory -Force -Path "$pkg\gcc\bin"
+
+          Write-Host "Copying GCC tools..."
+          Copy-Item -Path "$gccExe" -Destination "$pkg\gcc\bin\"
+
+          # Копируем минимально необходимые утилиты
+          $tools = @("as.exe", "ld.exe", "cc1.exe", "collect2.exe")
+          foreach ($tool in $tools) {
+              $src = "$mingwRoot\bin\$tool"
+              if (Test-Path $src) {
+                  Copy-Item -Path $src -Destination "$pkg\gcc\bin\"
+              }
+          }
+
+          # Копируем нужные библиотеки
+          $libs = @("libgcc_s_seh-1.dll", "libwinpthread-1.dll", "libstdc++-6.dll", "libgmp-10.dll", "libmpfr-6.dll", "libmpc-3.dll", "libisl-23.dll", "zlib1.dll")
+          foreach ($lib in $libs) {
+              $src = "$mingwRoot\bin\$lib"
+              if (Test-Path $src) {
+                  Copy-Item -Path $src -Destination "$pkg\gcc\bin\"
+              }
+          }
+
+          # Проверяем, что gcc.exe скопировался
           if (-not (Test-Path "$pkg\gcc\bin\gcc.exe")) {
-              Write-Error "gcc.exe not found in package!"
+              Write-Error "gcc.exe not found in package after copy!"
               exit 1
           }
 
