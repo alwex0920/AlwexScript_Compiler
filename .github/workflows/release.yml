@@ -58,27 +58,37 @@ jobs:
             gcc -c alwex_runtime.c -o alwex_runtime.o
             gcc alwex_compiler.c -o alwex_compiler.exe -lwininet
   
-        - name: Prepare Windows package (with portable GCC from MSYS2)
-          shell: pwsh
-          run: |
-            $pkg = "windows_pkg"
-            mkdir $pkg
-            cp alwex_compiler.exe $pkg/
-            cp alwex_runtime.o $pkg/
-  
-            # Копируем портативный GCC из установленного MSYS2 MINGW64
-            $mingwRoot = "C:\msys64\mingw64"
-            # Создаём папку gcc внутри пакета
-            mkdir $pkg\gcc
-            # Копируем bin (gcc.exe и нужные dll)
-            Copy-Item -Path "$mingwRoot\bin\*" -Destination "$pkg\gcc\" -Recurse
-            # Копируем lib и include для компиляции программ
-            Copy-Item -Path "$mingwRoot\lib\*" -Destination "$pkg\gcc\" -Recurse
-            Copy-Item -Path "$mingwRoot\include\*" -Destination "$pkg\gcc\" -Recurse
-            # Удаляем огромные ненужные файлы, чтобы уменьшить размер (опционально)
-            Remove-Item "$pkg\gcc\*.a" -Force -ErrorAction SilentlyContinue
-            # Архивируем
-            Compress-Archive -Path $pkg\* -DestinationPath alwex-compiler-windows.zip
+              - name: Prepare Windows package (with portable GCC)
+                shell: pwsh
+                run: |
+                  $pkg = "windows_pkg"
+                  New-Item -ItemType Directory -Force -Path $pkg
+        
+                  # Копируем сам компилятор
+                  Copy-Item -Path "alwex_compiler.exe" -Destination $pkg\
+                  Copy-Item -Path "alwex_runtime.o" -Destination $pkg\
+        
+                  # Копируем портативный GCC из MSYS2
+                  $mingwRoot = "C:\msys64\mingw64"
+                  Write-Host "Copying GCC from $mingwRoot ..."
+                  if (-not (Test-Path $mingwRoot)) {
+                      Write-Error "MSYS2 mingw64 directory not found!"
+                      exit 1
+                  }
+                  # Копируем все нужные файлы и папки
+                  Copy-Item -Path "$mingwRoot\bin" -Destination "$pkg\gcc\" -Recurse -Force
+                  Copy-Item -Path "$mingwRoot\lib" -Destination "$pkg\gcc\" -Recurse -Force
+                  Copy-Item -Path "$mingwRoot\include" -Destination "$pkg\gcc\" -Recurse -Force
+                  # Для большинства программ lib и include не обязательны, но пусть будут
+        
+                  # Проверяем, что gcc.exe реально скопирован
+                  if (-not (Test-Path "$pkg\gcc\bin\gcc.exe")) {
+                      Write-Error "gcc.exe not found in package!"
+                      exit 1
+                  }
+        
+                  Write-Host "Creating archive..."
+                  Compress-Archive -Path "$pkg\*" -DestinationPath "alwex-compiler-windows.zip" -Force
   
         - name: Upload Windows archive to release
           uses: softprops/action-gh-release@v2
