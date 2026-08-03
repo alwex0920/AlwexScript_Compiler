@@ -1,0 +1,107 @@
+name: Build and Release
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libcurl4-openssl-dev dpkg-dev
+
+      - name: Build project
+        run: |
+          gcc -c alwex_runtime.c -o alwex_runtime.o
+          gcc alwex_compiler.c -o alwex_compiler
+
+      - name: Download portable GCC for Linux
+        run: |
+          # Здесь используем уже готовый портативный GCC
+          # Для примера скачаем с GitHub Releases условный портативный gcc
+          # В реальности ты можешь собрать свой или использовать системный
+          # Но для deb-пакета проще добавить зависимость gcc
+          # Если всё же нужен портативный, можно распаковать в pkg/usr/lib/alwex/
+          echo "Portable GCC for Linux not included; using system gcc dependency."
+
+      - name: Prepare .deb package structure
+        run: |
+          mkdir -p pkg/usr/bin
+          cp alwex_compiler pkg/usr/bin/alwex_compiler
+          cp alwex_runtime.o pkg/usr/bin/alwex_runtime.o
+          # Если есть портативный gcc, можно положить его в pkg/usr/lib/alwex/
+          mkdir pkg/DEBIAN
+          cat > pkg/DEBIAN/control << 'EOF'
+          Package: alwex-compiler
+          Version: 1.0.0
+          Section: devel
+          Priority: optional
+          Architecture: amd64
+          Depends: libc6, libcurl4, gcc
+          Maintainer: Your Name <your.email@example.com>
+          Description: AlwexScript compiler
+           Compiler for AlwexScript language to native executables.
+          EOF
+
+      - name: Build .deb package
+        run: dpkg-deb --build pkg alwex-compiler.deb
+
+      - name: Upload .deb to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: alwex-compiler.deb
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >-
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-curl
+
+      - name: Build project
+        shell: msys2 {0}
+        run: |
+          gcc -c alwex_runtime.c -o alwex_runtime.o
+          gcc alwex_compiler.c -o alwex_compiler.exe -lwininet
+
+      - name: Prepare Windows package
+        shell: pwsh
+        run: |
+          mkdir windows_pkg
+          cp alwex_compiler.exe windows_pkg/
+          cp alwex_runtime.o windows_pkg/
+
+          # Скачиваем портативный MinGW (winlibs)
+          $mingw_url = "https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posixseh-msvcrt-12.0.0-r1/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r1.zip"
+          Invoke-WebRequest -Uri $mingw_url -OutFile mingw.zip
+          Expand-Archive mingw.zip -DestinationPath mingw
+
+          # Копируем только необходимые файлы для gcc (bin и lib)
+          mkdir windows_pkg\gcc
+          Copy-Item -Path mingw\mingw64\bin\* -Destination windows_pkg\gcc\ -Recurse
+          Copy-Item -Path mingw\mingw64\lib\* -Destination windows_pkg\gcc\ -Recurse
+          # Можно добавить include, если нужно
+
+          # Создаём самораспаковывающийся архив (zip)
+          Compress-Archive -Path windows_pkg\* -DestinationPath alwex-compiler-windows.zip
+
+      - name: Upload Windows archive to release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: alwex-compiler-windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
