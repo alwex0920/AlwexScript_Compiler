@@ -38,36 +38,49 @@ jobs:
         with:
           files: alwex-compiler.deb
 
-  build-windows:
+    build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: msys2/setup-msys2@v2
+
+      - name: Setup MSYS2
+        uses: msys2/setup-msys2@v2
         with:
           msystem: MINGW64
           update: true
           install: >-
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-curl
+
       - name: Build project
         shell: msys2 {0}
         run: |
           gcc -c alwex_runtime.c -o alwex_runtime.o
           gcc alwex_compiler.c -o alwex_compiler.exe -lwininet
-      - name: Package Windows build
+
+      - name: Prepare Windows package (with portable GCC from MSYS2)
         shell: pwsh
         run: |
-          mkdir windows_pkg
-          cp alwex_compiler.exe windows_pkg/
-          cp alwex_runtime.o windows_pkg/
-          # Скачиваем портативный MinGW
-          $mingw_url = "https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posixseh-msvcrt-12.0.0-r1/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r1.zip"
-          Invoke-WebRequest -Uri $mingw_url -OutFile mingw.zip
-          Expand-Archive mingw.zip -DestinationPath mingw
-          Copy-Item mingw/mingw64/bin/* windows_pkg/gcc/ -Recurse
-          Copy-Item mingw/mingw64/lib/* windows_pkg/gcc/ -Recurse
-          Compress-Archive -Path windows_pkg/* -DestinationPath alwex-compiler-windows.zip
-      - name: Upload Windows archive
+          $pkg = "windows_pkg"
+          mkdir $pkg
+          cp alwex_compiler.exe $pkg/
+          cp alwex_runtime.o $pkg/
+
+          # Копируем портативный GCC из установленного MSYS2 MINGW64
+          $mingwRoot = "C:\msys64\mingw64"
+          # Создаём папку gcc внутри пакета
+          mkdir $pkg\gcc
+          # Копируем bin (gcc.exe и нужные dll)
+          Copy-Item -Path "$mingwRoot\bin\*" -Destination "$pkg\gcc\" -Recurse
+          # Копируем lib и include для компиляции программ
+          Copy-Item -Path "$mingwRoot\lib\*" -Destination "$pkg\gcc\" -Recurse
+          Copy-Item -Path "$mingwRoot\include\*" -Destination "$pkg\gcc\" -Recurse
+          # Удаляем огромные ненужные файлы, чтобы уменьшить размер (опционально)
+          Remove-Item "$pkg\gcc\*.a" -Force -ErrorAction SilentlyContinue
+          # Архивируем
+          Compress-Archive -Path $pkg\* -DestinationPath alwex-compiler-windows.zip
+
+      - name: Upload Windows archive to release
         uses: softprops/action-gh-release@v2
         with:
           files: alwex-compiler-windows.zip
