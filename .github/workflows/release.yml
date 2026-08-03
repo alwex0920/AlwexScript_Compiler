@@ -52,65 +52,48 @@ jobs:
             mingw-w64-x86_64-gcc
             mingw-w64-x86_64-curl
 
-      - name: Build project
+      - name: Build and prepare package
         shell: msys2 {0}
         run: |
+          # Собираем компилятор Alwex
           gcc -c alwex_runtime.c -o alwex_runtime.o
           gcc alwex_compiler.c -o alwex_compiler.exe -lwininet
 
-      - name: Prepare Windows package (with portable GCC)
+          # Создаем структуру пакета
+          mkdir -p windows_pkg/gcc/bin
+          cp alwex_compiler.exe windows_pkg/
+          cp alwex_runtime.o windows_pkg/
+
+          # Находим реальный путь к gcc
+          GCC_BIN=$(dirname $(which gcc))
+          echo "GCC bin directory: $GCC_BIN"
+
+          # Копируем сам GCC и минимально необходимые утилиты
+          for tool in gcc as ld cc1 collect2; do
+            if [ -f "$GCC_BIN/$tool.exe" ]; then
+              cp "$GCC_BIN/$tool.exe" windows_pkg/gcc/bin/
+            fi
+          done
+
+          # Копируем все DLL, чтобы не гадать с зависимостями
+          cp $GCC_BIN/*.dll windows_pkg/gcc/bin/ 2>/dev/null || true
+
+          # Проверяем результат
+          if [ -f windows_pkg/gcc/bin/gcc.exe ]; then
+            echo "gcc.exe successfully copied"
+          else
+            echo "ERROR: gcc.exe not found in package"
+            exit 1
+          fi
+
+      - name: Create archive (PowerShell)
         shell: pwsh
         run: |
-          $pkg = "windows_pkg"
-          New-Item -ItemType Directory -Force -Path $pkg
-
-          # Копируем сам компилятор
-          Copy-Item -Path "alwex_compiler.exe" -Destination $pkg\
-          Copy-Item -Path "alwex_runtime.o" -Destination $pkg\
-
-          $mingwRoot = "C:\msys64\mingw64"
-          Write-Host "Listing $mingwRoot\bin (первые 20 файлов):"
-          Get-ChildItem "$mingwRoot\bin" -File | Select-Object -First 20 | ForEach-Object { Write-Host $_.Name }
-
-          # Убедимся, что gcc.exe существует
-          $gccExe = "$mingwRoot\bin\gcc.exe"
-          if (-not (Test-Path $gccExe)) {
-              Write-Error "gcc.exe not found in $mingwRoot\bin"
+          if (-not (Test-Path "windows_pkg\gcc\bin\gcc.exe")) {
+              Write-Error "gcc.exe not found in package"
               exit 1
           }
-
-          # Создаём папку gcc/bin внутри пакета
-          New-Item -ItemType Directory -Force -Path "$pkg\gcc\bin"
-
-          Write-Host "Copying GCC tools..."
-          Copy-Item -Path "$gccExe" -Destination "$pkg\gcc\bin\"
-
-          # Копируем минимально необходимые утилиты
-          $tools = @("as.exe", "ld.exe", "cc1.exe", "collect2.exe")
-          foreach ($tool in $tools) {
-              $src = "$mingwRoot\bin\$tool"
-              if (Test-Path $src) {
-                  Copy-Item -Path $src -Destination "$pkg\gcc\bin\"
-              }
-          }
-
-          # Копируем нужные библиотеки
-          $libs = @("libgcc_s_seh-1.dll", "libwinpthread-1.dll", "libstdc++-6.dll", "libgmp-10.dll", "libmpfr-6.dll", "libmpc-3.dll", "libisl-23.dll", "zlib1.dll")
-          foreach ($lib in $libs) {
-              $src = "$mingwRoot\bin\$lib"
-              if (Test-Path $src) {
-                  Copy-Item -Path $src -Destination "$pkg\gcc\bin\"
-              }
-          }
-
-          # Проверяем, что gcc.exe скопировался
-          if (-not (Test-Path "$pkg\gcc\bin\gcc.exe")) {
-              Write-Error "gcc.exe not found in package after copy!"
-              exit 1
-          }
-
-          Write-Host "Creating archive..."
-          Compress-Archive -Path "$pkg\*" -DestinationPath "alwex-compiler-windows.zip" -Force
+          Compress-Archive -Path "windows_pkg\*" -DestinationPath "alwex-compiler-windows.zip" -Force
 
       - name: Upload Windows archive to release
         uses: softprops/action-gh-release@v2
