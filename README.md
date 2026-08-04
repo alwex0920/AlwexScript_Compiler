@@ -8,4 +8,4 @@ gcc -c alwex_runtime.c -o alwex_runtime.o
 gcc alwex_compiler.c -o alwex_compiler
 ```
 
-P.S: Версия компилятора должна совпадать с версией AlwexScript который у вас установлен
+P.S: Версия компилятора желательно должна совпадать с версией AlwexScript который у вас установлен
