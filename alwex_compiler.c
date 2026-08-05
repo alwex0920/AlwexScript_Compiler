@@ -674,29 +674,18 @@ void compile_line(const char* token, FILE* out, const char** pp) {
         while (*args == ' ' || *args == '\t') args++;
         char filename[100];
         int i = 0;
-        while (*args && !isspace((unsigned char)*args) && i < 99) filename[i++] = *args++;
+        while (*args && !my_isspace(*args) && i < 99) filename[i++] = *args++;
         filename[i] = '\0';
         while (*args == ' ' || *args == '\t') args++;
-
-        // извлекаем содержимое без кавычек
-        char content[1024] = {0};
-        if (*args == '\'' || *args == '"') {
-            char quote = *args++;
-            const char* endq = strchr(args, quote);
-            if (endq) {
-                size_t len = endq - args;
-                if (len >= sizeof(content)) len = sizeof(content)-1;
-                strncpy(content, args, len);
-                content[len] = '\0';
-            } else {
-                strcpy(content, args);
-            }
-        } else {
-            strcpy(content, args);
-        }
+    
         char escaped[1024];
-        escape_for_c_string(content, escaped, sizeof(escaped));
-        fprintf(out, "%*salwex_file_write(\"%s\", \"%s\");\n", current_indent*4, "", filename, escaped);
+        escape_for_c_string(args, escaped, sizeof(escaped));
+        fprintf(out, "%*s{\n", current_indent*4, "");
+        fprintf(out, "%*schar alwex_file_content[1024];\n", current_indent*4, "");
+        fprintf(out, "%*sexpand_vars(alwex_file_content, \"%s\", sizeof(alwex_file_content));\n", current_indent*4, "", escaped);
+        fprintf(out, "%*sFILE* f = fopen(\"%s\", \"w\");\n", current_indent*4, "", filename);
+        fprintf(out, "%*sif (f) { fputs(alwex_file_content, f); fclose(f); }\n", current_indent*4, "");
+        fprintf(out, "%*s}\n", current_indent*4, "");
         return;
     }
 
@@ -749,9 +738,15 @@ void compile_line(const char* token, FILE* out, const char** pp) {
 
     // exec command
     if (strncmp(token, "exec ", 5) == 0) {
-        char* cmd = token + 5;
+        const char* cmd = token + 5;
         while (*cmd == ' ' || *cmd == '\t') cmd++;
-        fprintf(out, "%*ssystem(\"%s\");\n", current_indent*4, "", cmd);
+        char escaped[1024];
+        escape_for_c_string(cmd, escaped, sizeof(escaped));
+        fprintf(out, "%*s{\n", current_indent*4, "");
+        fprintf(out, "%*schar alwex_exec_cmd[1024];\n", current_indent*4, "");
+        fprintf(out, "%*sexpand_vars(alwex_exec_cmd, \"%s\", sizeof(alwex_exec_cmd));\n", current_indent*4, "", escaped);
+        fprintf(out, "%*ssystem(alwex_exec_cmd);\n", current_indent*4, "");
+        fprintf(out, "%*s}\n", current_indent*4, "");
         return;
     }
 
