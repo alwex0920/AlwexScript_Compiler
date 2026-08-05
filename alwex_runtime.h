@@ -170,5 +170,6 @@ void import_library(const char* libname, int depth);
 void execute_function(const char* name);
 void object_set_property(const char* obj_name, const char* prop_name, const char* expr);
 void object_print_property(const char* obj_name, const char* prop_name);
+void expand_vars(char* dest, const char* src, size_t max_len);
 
 #endif
