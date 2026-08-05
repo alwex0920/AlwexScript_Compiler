@@ -313,6 +313,46 @@ void http_download(const char* url, const char* filename) {
 #endif
 }
 
+// Заменяет {var} на значение переменной var (число или строку)
+void expand_vars(char* dest, const char* src, size_t max_len) {
+    size_t di = 0;
+    const char* si = src;
+    while (*si && di < max_len - 1) {
+        if (*si == '{') {
+            const char* end = strchr(si + 1, '}');
+            if (end) {
+                char varname[50];
+                size_t len = end - (si + 1);
+                if (len >= sizeof(varname)) len = sizeof(varname) - 1;
+                strncpy(varname, si + 1, len);
+                varname[len] = '\0';
+                struct Variable* v = find_variable(varname);
+                if (v) {
+                    if (v->str_value) {
+                        size_t slen = strlen(v->str_value);
+                        if (di + slen < max_len - 1) {
+                            strcpy(dest + di, v->str_value);
+                            di += slen;
+                        }
+                    } else {
+                        char num_buf[64];
+                        snprintf(num_buf, sizeof(num_buf), "%.15g", v->value);
+                        size_t nlen = strlen(num_buf);
+                        if (di + nlen < max_len - 1) {
+                            strcpy(dest + di, num_buf);
+                            di += nlen;
+                        }
+                    }
+                }
+                si = end + 1;
+                continue;
+            }
+        }
+        dest[di++] = *si++;
+    }
+    dest[di] = '\0';
+}
+
 int alwex_rand() {
     rand_state = rand_state * 1103515245 + 12345;
     return (unsigned int)(rand_state / 65536) % 32768;
