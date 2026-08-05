@@ -691,9 +691,38 @@ void compile_line(const char* token, FILE* out, const char** pp) {
 
     // file_read filename
     if (strncmp(token, "file_read ", 10) == 0) {
-        char* filename = token + 10;
+        const char* filename = token + 10;
         while (*filename == ' ' || *filename == '\t') filename++;
-        fprintf(out, "%*salwex_file_read(\"%s\");\n", current_indent*4, "", filename);
+        fprintf(out, "%*s{\n", current_indent*4, "");
+        fprintf(out, "%*sFILE* f = fopen(\"%s\", \"r\");\n", current_indent*4, "", filename);
+        fprintf(out, "%*sif (f) {\n", current_indent*4, "");
+        fprintf(out, "%*sfseek(f, 0, SEEK_END);\n", current_indent*4, "");
+        fprintf(out, "%*slong size = ftell(f);\n", current_indent*4, "");
+        fprintf(out, "%*srewind(f);\n", current_indent*4, "");
+        fprintf(out, "%*schar* content = malloc(size + 1);\n", current_indent*4, "");
+        fprintf(out, "%*sif (content) {\n", current_indent*4, "");
+        fprintf(out, "%*sfread(content, 1, size, f);\n", current_indent*4, "");
+        fprintf(out, "%*scontent[size] = '\\0';\n", current_indent*4, "");
+        fprintf(out, "%*sstruct Variable* v = find_variable(\"file_content\");\n", current_indent*4, "");
+        fprintf(out, "%*sif (!v) {\n", current_indent*4, "");
+        fprintf(out, "%*sint idx = add_variable();\n", current_indent*4, "");
+        fprintf(out, "%*sif (idx >= 0) {\n", current_indent*4, "");
+        fprintf(out, "%*sv = &variables[idx];\n", current_indent*4, "");
+        fprintf(out, "%*sstrcpy(v->name, \"file_content\");\n", current_indent*4, "");
+        fprintf(out, "%*s}\n", current_indent*4, "");
+        fprintf(out, "%*s}\n", current_indent*4, "");
+        fprintf(out, "%*sif (v) {\n", current_indent*4, "");
+        fprintf(out, "%*sint si = add_string();\n", current_indent*4, "");
+        fprintf(out, "%*sif (si >= 0) {\n", current_indent*4, "");
+        fprintf(out, "%*sstrcpy(string_pool[si], content);\n", current_indent*4, "");
+        fprintf(out, "%*sv->str_value = string_pool[si];\n", current_indent*4, "");
+        fprintf(out, "%*sv->value = size;\n", current_indent*4, "");
+        fprintf(out, "%*s}\n", current_indent*4, "");
+        fprintf(out, "%*s}\n", current_indent*4, "");
+        fprintf(out, "%*sfree(content);\n", current_indent*4, "");
+        fprintf(out, "%*s}\n", current_indent*4, "");
+        fprintf(out, "%*sfclose(f);\n", current_indent*4, "");
+        fprintf(out, "%*s}\n", current_indent*4, "");
         return;
     }
 
