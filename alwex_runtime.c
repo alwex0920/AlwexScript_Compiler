@@ -1073,8 +1073,7 @@ struct Value parse_factor(const char** p) {
                         }
                     }
                 } else {
-                    printf("Error: str() expects one argument
-");
+                    printf("Error: str() expects one argument\n");
                     result.type = 0; result.num = 0;
                 }
             }
@@ -1087,12 +1086,11 @@ struct Value parse_factor(const char** p) {
                         result.num = str_to_double(args[0].str);
                     }
                 } else {
-                    printf("Error: num() expects one argument
-");
+                    printf("Error: num() expects one argument\n");
                     result.type = 0; result.num = 0;
                 }
             }
-            else else {
+            else {
                 printf("Error: unknown function '%s'\n", name);
                 result.type = 0; result.num = 0;
             }
