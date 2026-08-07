@@ -25,7 +25,15 @@
 #define MAX_HTTP_RESPONSE 1048576  // 1MB max response
 
 #ifndef _WIN32
-#define strlcpy(dest, src, size) strncpy(dest, src, size)
+static inline size_t alwex_strlcpy(char *dest, const char *src, size_t size) {
+    size_t src_len = strlen(src);
+    if (size == 0) return src_len;
+    size_t to_copy = src_len < size - 1 ? src_len : size - 1;
+    memcpy(dest, src, to_copy);
+    dest[to_copy] = '\0';
+    return src_len;
+}
+#define strlcpy(dest, src, size) alwex_strlcpy(dest, src, size)
 #else
 size_t strlcpy(char *dest, const char *src, size_t size) {
     size_t src_len = strlen(src);
@@ -342,6 +350,12 @@ void expand_vars(char* dest, const char* src, size_t max_len) {
                             strcpy(dest + di, num_buf);
                             di += nlen;
                         }
+                    }
+                } else {
+                    size_t raw_len = end - si + 1;
+                    if (di + raw_len < max_len - 1) {
+                        strncpy(dest + di, si, raw_len);
+                        di += raw_len;
                     }
                 }
                 si = end + 1;
@@ -1043,7 +1057,42 @@ struct Value parse_factor(const char** p) {
                     result.type = 0; result.num = 0;
                 }
             }
-            else {
+            else if (strcmp(name, "str") == 0) {
+                if (arg_count == 1) {
+                    if (args[0].type == 1) {
+                        result = args[0];
+                    } else {
+                        char temp[STRING_SIZE];
+                        snprintf(temp, sizeof(temp), "%.15g", args[0].num);
+                        int idx = add_string();
+                        if (idx >= 0) {
+                            strcpy(string_pool[idx], temp);
+                            result.type = 1;
+                            result.str = string_pool[idx];
+                            result.num = 0;
+                        }
+                    }
+                } else {
+                    printf("Error: str() expects one argument
+");
+                    result.type = 0; result.num = 0;
+                }
+            }
+            else if (strcmp(name, "num") == 0) {
+                if (arg_count == 1) {
+                    if (args[0].type == 0) {
+                        result = args[0];
+                    } else {
+                        result.type = 0;
+                        result.num = str_to_double(args[0].str);
+                    }
+                } else {
+                    printf("Error: num() expects one argument
+");
+                    result.type = 0; result.num = 0;
+                }
+            }
+            else else {
                 printf("Error: unknown function '%s'\n", name);
                 result.type = 0; result.num = 0;
             }
@@ -1308,7 +1357,7 @@ void init_memory() {
     var_capacity = 10;
     variables = malloc(var_capacity * sizeof(struct Variable));
     
-    string_capacity = 10;
+    string_capacity = 10000;
     string_pool = malloc(string_capacity * sizeof(char*));
     for (int i = 0; i < string_capacity; i++) {
         string_pool[i] = malloc(STRING_SIZE);
@@ -1699,8 +1748,6 @@ void import_library(const char* libname, int import_depth) {
             return;
         }
     }
-
-    extern char current_script_dir[512];
 
     if (current_script_dir[0] != '\0') {
         snprintf(local_path, sizeof(local_path), "%s/%s.alw", current_script_dir, libname);
